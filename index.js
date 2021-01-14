@@ -1,32 +1,177 @@
-const express = require("express");
+var createError = require("http-errors");
+var express = require("express");
+var path = require("path");
+var cookieParser = require("cookie-parser");
+var logger = require("morgan");
+var bodyParser = require("body-parser");
+var cors = require("cors");
+
 const app = express();
-const port = 5000;
+
+// view engine setup
+app.set("views", path.join(__dirname, "views"));
+app.set("view engine", "pug");
+
+app.use(logger("dev"));
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
+app.use(cookieParser());
+app.use(express.static(path.join(__dirname, "public")));
+
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json());
+
+app.use(cors());
+
+//============================================================================================================
+const { User } = require("./models/User");
 
 const mongoose = require("mongoose");
 
-const administrator = require("./config/administrator");
-
-const uri = `mongodb+srv://${administrator.user}:${administrator.password}@boilerplate.2pm95.mongodb.net/test?retryWrites=true&w=majority`;
+const key = require("./config/key");
 
 mongoose
-  .connect(uri, {
+  .connect(key.mongoURI, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
     useCreateIndex: true,
     useFindAndModify: false,
   })
-  .then(() => console.log("MongoDB connection is established."))
-  .catch((error) => {
-    console.error("MongoDB connection error: ", error);
+  .then(() => console.log("Successfully connected to mongodb."))
+  .catch((err) => {
+    console.error("MongoDB connection error: ", err);
     client.close();
   });
 
+var usersWelcome = require("./routes/welcome");
+app.use("/welcome", usersWelcome);
+
 app.get("/", (req, res) => {
-  res.send("Hello World!");
+  res.send("Hello World!!!");
 });
 
-app.listen(port, () => {
-  console.log(`Example app listening at http://localhost:${port}`);
+app.post("/register", (req, res) => {
+  console.log(req.path, req.method, req.url, req.body);
+
+  const user = new User(req.body);
+
+  user.save((err, user) => {
+    if (err) return res.json({ success: false, err });
+
+    return res.status(200).json({
+      success: true,
+    });
+  });
 });
 
-// Test
+// app.get("/login", (req, res) => {
+//   User.findOne({ email: req.body.email }, (err, user) => {
+//     if (!userInfo) {
+//       return res.json({
+//         loginSuccess: false,
+//         message: "사용자가 존재하지 않습니다.",
+//       });
+//     }
+//   });
+// });
+
+//============================================================================================================
+// catch 404 and forward to error handler
+app.use(function (req, res, next) {
+  next(createError(404));
+});
+
+// error handler
+app.use(function (err, req, res, next) {
+  // set locals, only providing error in development
+  res.locals.message = err.message;
+  res.locals.error = req.app.get("env") === "development" ? err : {};
+
+  // render the error page
+  res.status(err.status || 500);
+  res.render("error");
+});
+
+//============================================================================================================
+// const port = process.env.PORT || 5000;
+
+// app.listen(port, () => {
+//   console.log(`Server listening at http://localhost:${port}`);
+// });
+
+//============================================================================================================
+var debug = require("debug")("mongodb-tutorial:server");
+var http = require("http");
+
+var port = normalizePort(process.env.PORT || "5000");
+app.set("port", port);
+
+/**
+ * Create HTTP server.
+ */
+
+var server = http.createServer(app);
+
+/**
+ * Listen on provided port, on all network interfaces.
+ */
+
+server.listen(port);
+server.on("error", onError);
+server.on("listening", onListening);
+
+/**
+ * Normalize a port into a number, string, or false.
+ */
+
+function normalizePort(val) {
+  var port = parseInt(val, 10);
+
+  if (isNaN(port)) {
+    // named pipe
+    return val;
+  }
+
+  if (port >= 0) {
+    // port number
+    return port;
+  }
+
+  return false;
+}
+
+/**
+ * Event listener for HTTP server "error" event.
+ */
+
+function onError(error) {
+  if (error.syscall !== "listen") {
+    throw error;
+  }
+
+  var bind = typeof port === "string" ? "Pipe " + port : "Port " + port;
+
+  // handle specific listen errors with friendly messages
+  switch (error.code) {
+    case "EACCES":
+      console.error(bind + " requires elevated privileges");
+      process.exit(1);
+      break;
+    case "EADDRINUSE":
+      console.error(bind + " is already in use");
+      process.exit(1);
+      break;
+    default:
+      throw error;
+  }
+}
+
+/**
+ * Event listener for HTTP server "listening" event.
+ */
+
+function onListening() {
+  var addr = server.address();
+  var bind = typeof addr === "string" ? "pipe " + addr : "port " + addr.port;
+  debug("Listening on " + bind);
+}
